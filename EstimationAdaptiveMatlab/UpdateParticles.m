@@ -16,33 +16,33 @@ for m=1:M
     end
     %% C Phase
     % Reweight each particle to take into account new observation
-    weights = Particles{m}.weights;
+    logweights = Particles{m}.logweights;
     ChoiceSet = SubjData{subj}.Xs{obs};
     choice = SubjData{subj}.ChoiceList(obs);
     for g = 1:param.G
         for p = 1:param.P
             proba_choice = ProbaChoice( ChoiceSet, subj, model , Particles{m}.particle{g,p}, param );
-            weights(g,p) = weights(g,p) * proba_choice(choice);
+            logweights(g,p) = logweights(g,p) + log(proba_choice(choice));
         end
     end
     % Compute relative ESS
-    ress = sum(sum(weights))^2 / (param.G*param.P*sum(sum(weights.^2)));
+    ress = sum(sum(exp(logweights)))^2 / (param.G*param.P*sum(sum(exp(2 .*logweights))));
     
     % Save marginal likelihood for current observation
-    log_w_bar = log( sum(weights,2) ./ sum(Particles{m}.weights,2) );%(param.G*param.P));
+    log_w_bar = log( sum(exp(logweights),2) ./ sum(exp(Particles{m}.logweights),2) );%(param.G*param.P));
     Particles{m}.log_marg_like(subj,:) = Particles{m}.log_marg_like(subj,:) + log_w_bar';
     Particles{m}.log_marg_like_total = Particles{m}.log_marg_like_total + log_w_bar;
-    Particles{m}.weights = weights;
+    Particles{m}.logweights = logweights - max(Particles{m}.logweights(:));
     fprintf('End C: Model %d ; RESS = %.5f ; %d - %d subject avg logML = %.5f\n',m,ress,subj,obs,mean(Particles{m}.log_marg_like(subj,:)) );
     
     %% S Phase : Importance Resampling, within particle groups
     if ~param.Adaptive || ress < param.ress_threshold || obs == numel(SubjData{subj}.ChoiceList) || obs < 5
         for g=1:param.G
             %Resample if weights are not all the same
-            if length(unique(weights(g,:))) > 1
-                resample = drawidx(param.P,weights(g,:));
+            if length(unique(logweights(g,:))) > 1
+                resample = drawidx(param.P,exp(logweights(g,:)));
                 % Make a copy of the drawn particles
-                temp_Particles = cell(1,param.P);
+                NewTheta = cell(1,param.P);
                 for p=1:param.P
                    NewTheta{1,p}=Particles{m}.particle{g,resample(p)};
                 end
@@ -52,12 +52,10 @@ for m=1:M
                 end
             end
         end
-        Particles{m}.weights = ones(param.G,param.P);
+        Particles{m}.logweights = zeros(param.G,param.P);
         clear temp_Particles;
-    end
     
-    %% M phase
-    if ~param.Adaptive || ress < param.ress_threshold || obs == numel(SubjData{subj}.ChoiceList) || obs < 5
+        %% M phase
         accept_count = zeros(param.G,param.P);
         for g = 1:param.G
             % Get the Cholesky decomposition of the Covariance matrix for each

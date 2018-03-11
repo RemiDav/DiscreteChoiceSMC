@@ -1,7 +1,6 @@
 function [ EstimationOutput ] = EstimationAdaptiveSMC( SubjData, param, backup_file )
 % External libraries
 [filepath,~,~] = fileparts(mfilename('fullpath'));
-addpath([filepath filesep 'ProbabilityDistributions'])
 
 %% get data size
 param.num_subj = numel(SubjData); 
@@ -11,7 +10,7 @@ M = numel(param.Models);
 Particles = cell(M,1);
 for m=1:M
     Particles{m}.particle = cell(param.G,param.P);
-    Particles{m}.weights = ones(param.G,param.P);
+    Particles{m}.logweights = ones(param.G,param.P);
     % Initialize output values
     Particles{m}.log_marg_like = zeros(param.num_subj,param.G);
     Particles{m}.log_marg_like_total = zeros(param.G,1);
