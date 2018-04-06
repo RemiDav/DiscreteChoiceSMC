@@ -22,6 +22,7 @@ for m=1:M
     for g = 1:param.G
         for p = 1:param.P
             proba_choice = ProbaChoice( ChoiceSet, subj, model , Particles{m}.particle{g,p}, param );
+            Particles{m}.particle{g,p}.log_lik_subj(subj) = Particles{m}.particle{g,p}.log_lik_subj(subj) + log(proba_choice(choice));
             logweights(g,p) = logweights(g,p) + log(proba_choice(choice));
         end
     end
@@ -30,6 +31,7 @@ for m=1:M
     
     % Save marginal likelihood for current observation
     log_w_bar = log( sum(exp(logweights),2) ./ sum(exp(Particles{m}.logweights),2) );%(param.G*param.P));
+    
     Particles{m}.log_marg_like(subj,:) = Particles{m}.log_marg_like(subj,:) + log_w_bar';
     Particles{m}.log_marg_like_total = Particles{m}.log_marg_like_total + log_w_bar;
     Particles{m}.logweights = logweights - max(Particles{m}.logweights(:));
@@ -63,8 +65,12 @@ for m=1:M
             chol_cov_theta = CholCovTheta( Particles{m}.particle(g,:), param );
             % Copy particles for parallel looping
             temp_Particles = Particles{m}.particle(g,:);
-            parfor p = 1:param.P
-                [temp_Particles{p},accept_count(g,p)] = Mutate(SubjData, subj, obs, model, temp_Particles{p},chol_cov_theta,param);
+            try
+                parfor p = 1:param.P
+                    [temp_Particles{p},accept_count(g,p)] = Mutate(SubjData, subj, obs, model, temp_Particles{p},chol_cov_theta,param);
+                end
+            catch ME
+                temp_Particles
             end
             Particles{m}.particle(g,:) = temp_Particles;
         end

@@ -14,12 +14,14 @@ for m=1:M
     % Initialize output values
     Particles{m}.log_marg_like = zeros(param.num_subj,param.G);
     Particles{m}.log_marg_like_total = zeros(param.G,1);
+    Particles{m}.log_marg_like_obs = {};
     Particles{m}.group_postmeans = cell(param.G,1);
     Particles{m}.postmeans = [];
     Particles{m}.group_postsd = cell(param.G,1);
     for g=1:param.G
         for p=1:param.P
             Particles{m}.particle{g,p} = InitParticle(m,param);
+            Particles{m}.particle{g,p}.log_lik_subj = zeros(param.num_subj,1);
         end
     end
 end
@@ -41,20 +43,25 @@ if nargin > 2
    end
 end
 clear BackupData
-%% Check if ress threshold provided
+%% Check if params provided, else set to default
 if ~isfield(param,'ress_threshold')
     param.ress_threshold = 0.8;
 end
+if ~isfield(param,'basepath')
+    param.basepath = '.';
+end
+
 %% Run SMC
 for subj = start_subj:param.num_subj
     fprintf('Begin Subject %d\n',subj)
     num_obs = numel(SubjData{subj}.ChoiceList);
+    Particles{m}.log_marg_like_obs = zeros(num_obs,param.G)
     for obs = 1:num_obs
         Particles = UpdateParticles( Particles, SubjData, subj, obs, param); 
     end
     %% Save temporary file in case of crash
-    save(['backup1-' param.Tag  '.mat']);
-    save(['backup2-' param.Tag  '.mat']);
+    save([param.basepath filesep 'backup1-' param.Tag  '.mat']);
+    save([param.basepath filesep 'backup2-' param.Tag  '.mat']);
 end
 
 %% Descriptive stats - Post Estimation
@@ -62,19 +69,21 @@ end
 log_marg_like = zeros(param.G,M);
 for m=1:M
     log_marg_like(:,m) = Particles{m}.log_marg_like_total;
-    %% Compute posterior means
-    size_NK = size(Particles{m}.particle{1}.theta);
-    Particles{m}.postmeans = nan(param.G,size_NK(1),size_NK(2));
-    for g=1:param.G
-        VectorizedTheta = nan(param.P,size_NK(2),size_NK(1));
-        for p = 1:param.P
-            VectorizedTheta(p,:,:) = Particles{m}.particle{g,p}.theta';
+    if isfield(Particles{m}.particle{1},'theta')
+        %% Compute posterior means
+        size_NK = size(Particles{m}.particle{1}.theta);
+        Particles{m}.postmeans = nan(param.G,size_NK(1),size_NK(2));
+        for g=1:param.G
+            VectorizedTheta = nan(param.P,size_NK(2),size_NK(1));
+            for p = 1:param.P
+                VectorizedTheta(p,:,:) = Particles{m}.particle{g,p}.theta';
+            end
+            Particles{m}.group_postmeans{g} = squeeze(mean(VectorizedTheta,1))';
+            Particles{m}.group_postsd{g} = squeeze(std(VectorizedTheta,[],1))';
+            Particles{m}.postmeans(g,:,:) = Particles{m}.group_postmeans{g};
         end
-        Particles{m}.group_postmeans{g} = squeeze(mean(VectorizedTheta,1))';
-        Particles{m}.group_postsd{g} = squeeze(std(VectorizedTheta,[],1))';
-        Particles{m}.postmeans(g,:,:) = Particles{m}.group_postmeans{g};
+        Particles{m}.postmeans = squeeze(mean(Particles{m}.postmeans));
     end
-    Particles{m}.postmeans = squeeze(mean(Particles{m}.postmeans));
 end
 
 %% Save output
@@ -85,7 +94,7 @@ EstimationOutput.param = param;
 EstimationOutput.Particles = Particles;
 EstimationOutput.log_marg_like = log_marg_like;
 %%
-save(param.savefile,'EstimationOutput','param');
+save([param.basepath filesep param.savefile],'EstimationOutput','param');
 
 end
 

@@ -1,0 +1,59 @@
+======================================
+= Bayesian Model Comparison with SMC =
+======================================
+
+The estimation is done by calling the function EstimationSMC( SubjData, param ).
+An example file is given: RunEstimation.m
+
+== Function call ==
+[ EstimationOutput ] = EstimationSMC( SubjData, param, backup_file )
+Arguments:
+- SubjData is a cell array of size N x 1
+Each cell must contain a structure with at least 2 fields:
+1) SubjData{n}.Xs : cell array of T observations.
+    + SubjData{n}.Xs{t}: Matrix of J(t) options x K(t) attributes
+2) SubjData{n}.ChoiceList : Vector of T x 1 Choices
+
+- param is a structure with the following fields
+param.G (scalar) Number of particles group
+param.P (scalar) Number of particles per group
+param.Msteps (scalar) Number of mutate steps
+param.Tag (char) This tag will be added to the backup file
+param.Models (cell array of char) list of models to use
+
+More fields can be added if needed. 
+The param structure is passed to most function and is a good way to send information.
+
+- backup_file (optional) is a char array containing a file name.
+It is used to resart an estimation if it was interrupted or if more observations are added.
+
+== Adaptive SMC ==
+You can use the Durham, Geweke (2014) adaptive estimation by setting param.Adaptive to true.
+The first 5 and last observations for each subjects never skip the resampling and mutation phase. 
+
+== How to add your own model ==
+Model can be added by edditing 4 files.
+
+1) InitParticle.m (Function)
+Initialize and returns a particle.
+This is run before starting the estimation. 
+The recomended format for the particle is a structure.
+Tt is recommended for the structure to have a field called 'theta' 
+containing a (num_subj x num_param) matrix.
+Other fields may include hyperparameters oranything useful for estimation.
+
+2) UpdateNewSubject.m (Function)
+Returns an updated particle, initialized for a new subject.
+This function is run before processing observation 1 for each new subject.
+The function can be used to draw parameter values when a new subject is added to the estimation.
+It is convenient for hierarchichal models where parameters for new subjects depends on other's subject parameters.
+
+3) ProbaChoice.m (Function)
+Renurns the probability of choice for each option in the choiceset.
+
+4) Mutate.m (function)
+Returns a particle after doing an MCMC move, and the ratio of accteptances.
+This function is run in parallel.
+This function is provided with a Cholesky decomposition of the covariance of parameters 
+within a group of particles, if the particle was initialized as recommanded in (1).
+
