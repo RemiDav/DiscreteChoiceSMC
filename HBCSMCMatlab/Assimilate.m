@@ -38,7 +38,7 @@ for m = 1:numel(param.Models)
                     end
                     logcondit.total = sum(logcondit.omega) + sum(logcondit.sig) + logcondit.r;
                 else
-                    error('logPrior : unknown model');
+                    error('Assimilate : unknown model');
                 end
                 %% Compute weights
                 log_weights(p) = logcondit.total-particle.logprior.total;
